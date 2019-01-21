@@ -115,13 +115,13 @@ examples in R.
 
 # Summary
 
-``causalweight`` is a comprehensive software package having an active user base. Its strength
-lies in its functionality (it runs on all standard operating systems), diversity of different 
-estimation methods, and simple handling that does not require deep programming knowledge. 
-It has been applied in the area of causal analysis for treatment effect evaluation in graduate 
-courses and recent papers, for example .... The source code uploaded on CRAN 
-(The Comprehensive R Archive Network) is available on 
-[https://github.com/hbodory/causalweight.git](https://github.com/hbodory/causalweight.git).
+``causalweight`` is a comprehensive software package having an active user base. It has also
+been applied in the area of causal analysis for treatment effect evaluation in graduate 
+courses. The strength of ``causalweight`` lies in its functionality (it runs on all standard 
+operating systems), diversity of different estimation methods, and simple handling that does 
+not require deep programming knowledge. The source code uploaded on CRAN (The Comprehensive 
+R Archive Network) is available on [https://cran.r-project.org/web/packages/causalweight/index.html]
+(https://cran.r-project.org/web/packages/causalweight/index.html).
 
  
 # References
