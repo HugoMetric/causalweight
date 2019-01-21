@@ -26,13 +26,13 @@ bibliography: paper.bib
 # Introduction
 
 Researchers in epidemiology, economics, political sciences, or other social 
-sciences frequently aim at evaluating the causal effect of some  
-intervention or treatment, as well as learning about the mechanisms through 
-which a causal effect operates. This paper introduces the R package ``causalweight``
-for analyzing the causal effect of a treatment as well as its mechanisms 
-(based on mediation analysis that incorporates intermediate outcomes called 
-mediators) under various identifying assumptions. All estimators rely on some 
-form of inverse probability weighting (IPW), by weighing outcomes by the inverse 
+sciences frequently aim at evaluating the causal effect of some intervention 
+or treatment, as well as learning about the mechanisms through which a causal 
+effect operates. This paper introduces the R package ``causalweight`` for 
+analyzing the causal effect of a treatment as well as its mechanisms (based 
+on mediation analysis that incorporates intermediate outcomes called mediators) 
+under various identifying assumptions. All estimators rely on some form of 
+inverse probability weighting (IPW), by weighing outcomes by the inverse 
 of a specific conditional probability or propensity score. The ``causalweight`` 
 package includes treatment evaluation under treatment selection on observables 
 with and without controlling for non-random outcome attrition or sample 
