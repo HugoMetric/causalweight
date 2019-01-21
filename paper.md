@@ -47,10 +47,10 @@ probit or logit specifications.
 
 # Overview of the core functions
 
-The core of ``causalweight`` consists of four functions aimed at user-friendly 
-treatment evaluation and mediation analysis. The following table illustrates the 
-structure of ``causalweight`` by assigning to each of the main functions the 
-corresponding treatment effect/mediation model.
+The core of ``causalweight`` consists of following main functions aimed at 
+user-friendly treatment evaluation and mediation analysis. The table below 
+illustrates the structure of ``causalweight`` by assigning to each of the 
+main functions the corresponding treatment effect/mediation model.
 
 | Functions in R | Treatment effect models                               |
 | -------------- |------------------------------------------------------ |
