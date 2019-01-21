@@ -120,8 +120,8 @@ been applied in the area of causal analysis for treatment effect evaluation in g
 courses. The strength of ``causalweight`` lies in its functionality (it runs on all standard 
 operating systems), diversity of different estimation methods, and simple handling that does 
 not require deep programming knowledge. The source code uploaded on CRAN (The Comprehensive 
-R Archive Network) is available on [https://cran.r-project.org/web/packages/causalweight/index.html]
-(https://cran.r-project.org/web/packages/causalweight/index.html).
+R Archive Network) is available on 
+[https://cran.r-project.org/web/packages/causalweight/index.html](https://cran.r-project.org/web/packages/causalweight/index.html).
 
  
 # References
