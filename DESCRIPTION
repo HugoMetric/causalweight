@@ -1,0 +1,17 @@
+Package: causalweight
+Type: Package
+Title: Estimation Methods for Causal Inference Based on Inverse
+        Probability Weighting
+Version: 0.1.2
+Author: Hugo Bodory and Martin Huber
+Maintainer: Hugo Bodory <hugo.bodory@unifr.ch>
+Description: Various estimation methods for causal inference based on inverse probability weighting. Specifically, the package includes methods for estimating average treatment effects as well as direct and indirect effects in causal mediation analysis. The models refer to the studies of Froelich (2007) <doi:10.1016/j.jeconom.2006.06.004>, Huber (2012) <doi:10.3102/1076998611411917>, Huber (2014) <doi:10.1080/07474938.2013.806197>, Huber (2014) <doi:10.1002/jae.2341>, and Froelich and Huber (2017) <doi:10.1111/rssb.12232>.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.1.0
+Depends: mvtnorm, np
+Suggests: knitr, rmarkdown
+VignetteBuilder: knitr
+NeedsCompilation: no
+Packaged: 2018-12-01 14:15:50 UTC; HSG-Spezial

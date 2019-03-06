@@ -1,0 +1,854 @@
+%\VignetteIndexEntry{The causalweight Package}
+%\VignetteDepends{causalweight, np, mvtnorm}
+%\VignetteKeywords{Treatment effect, selection on observables, sample selection, mediation analysis, instrumental variable, IPW}
+%\VignettePackage{causalweight}
+
+\documentclass[nojss]{jss}
+
+\usepackage{Sweave}
+\usepackage[utf8x]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{mathtools}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+
+%\usepackage{sectsty}
+%\sectionfont{\rightskip=0pt plus 2fil}
+
+\newcommand{\field}[1]{\mathbb{#1}}
+\newcommand{\R}{\field{R}}
+\newlength{\asdf} %define new length (longtable)
+\setlength{\asdf}{\textwidth} %set new length of textwidth
+\addtolength{\asdf}{-4\tabcolsep} %subtract from asdf 2 tabcolsep times columns of longtable
+
+
+\author{Hugo Bodory\\University of Fribourg
+  \And Martin Huber\\University of Fribourg}
+
+\title{The \pkg{causalweight} Package}
+
+\Plainauthor{Hugo Bodory, Martin Huber}
+
+\Plaintitle{The causalweight Package}
+
+\Shorttitle{The causalweight Package}
+
+\Abstract{
+We describe the \proglang{R} package \pkg{causalweight} for causal inference based on inverse probability weighting (IPW). The \pkg{causalweight} package offers a range of semiparametric methods for treatment or impact evaluation and mediation analysis, which incorporates intermediate outcomes for investigating causal mechanisms.
+Depending on the method, identification relies on selection on observables assumptions or on instrumental variables when selection is on unobservables, approaches that may also be applied to tackle non-random outcome attrition and sample selection. Inference is based on the bootstrap.}
+
+\Keywords{Treatment effect, selection on observables, sample selection, mediation analysis, instrumental variable, IPW}
+\Plainkeywords{Treatment effect, selection on observables, sample selection, mediation analysis, instrumental variable, IPW}
+%% \Volume{}
+%% \Issue{}
+%% \Month{}
+%% \Year{}
+%% \Submitdate{}
+%% \Acceptdate{}
+
+\Address{Hugo Bodory\\
+  University of Fribourg\\
+  Chair of Applied Econometrics\\
+  CH-1700 Fribourg, Switzerland\\
+  E-mail: \email{hugo.bodory@unifr.ch}\\
+  URL: \url{http://www.unifr.ch/appecon/en/team/hugo-bodory}\\
+  ~\\
+  Martin Huber\\
+	University of Fribourg\\
+  Chair of Applied Econometrics\\
+  CH-1700 Fribourg, Switzerland\\
+  E-mail: \email{martin.huber@unifr.ch}\\
+  URL: \url{http://www.unifr.ch/appecon/en/team/martin-huber}\\
+}
+
+\begin{document}
+\input{bodory-huber-concordance}
+
+\input{bodory-huber-concordance}
+\setkeys{Gin}{width=\textwidth}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Introduction}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Researchers in epidemiology, economics, political sciences, or other social sciences frequently aim at evaluating the causal effect of some binary intervention or treatment, as well as learning about the mechanisms through which a causal effect operates. This paper introduces the \proglang{R} package \pkg{causalweight} for analyzing the causal effect of a binary treatment as well as its mechanisms (based on mediation analysis that incorporates intermediate outcomes called mediators) under various identifying assumptions.  All estimators rely on some form of inverse probability weighting (IPW), by weighing outcomes by the inverse of a specific conditional probability or propensity score. The \pkg{causalweight} package includes treatment evaluation under treatment selection on observables with and without controlling for non-random outcome attrition or sample selection   \citep{Hu12,Hu14}, instrumental variable-based estimation of local average  treatment effects when controlling for observed covariates \citep{Fr07}, and mediation analysis for investigating causal mechanisms with selection on observables or instrumental variable assumptions \citep{Hu2014, FrHu17}. The nonparametric identification strategies underlying the estimators avoid imposing strong functional form restrictions in the structural models considered. Estimation of the propensity scores relies on probit or logit specifications.
+
+In the next chapters, we discuss various treatment effect models along with methods for analysing them and demonstrate the functionalities of the \proglang{R} package \pkg{causalweight} by means of examples with simulated data. Section \ref{overview} presents an overview of the functions available in the \pkg{causalweight} package. Section \ref{sample selection} discusses a treatment effect model with treatment selection on observables and non-random outcome attrition or sample selection. It also introduces the function \code{treatweight}, which allows treatment evaluation with and without sample selection correction, either based on observables or an instrument for selection. Section \ref{mediation} presents causal mediation models based on selection on observables assumptions along with the \code{medweight} function for estimating causal mechanisms. Section \ref{late} discusses treatment effect evaluation based on an instrument when controlling for observed covariates and its implementation in the \code{lateweight} function. Section \ref{iv_mediation} considers mediation analysis with distinct instruments for the treatment and the mediator when controlling for observed covariates, as implemented in the \code{medlateweight} function. Section \ref{summary} concludes.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section[{Overview of the causalweight package}]{Overview of the \pkg{causalweight} package}\label{overview}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The \pkg{causalweight} package consists of four functions aimed at user-friendly treatment evaluation and  mediation analysis. The following table illustrates the structure of the \pkg{causalweight} package by assigning to each of the main functions the corresponding treatment effect/mediation model.
+
+\begin{table}[h]
+\centering
+\caption{Main functions of the \pkg{causalweight} package}
+\label{taboverview}
+\begin{tabularx}{\textwidth}{lX}
+\hline
+Functions in \proglang{R} & Treatment effect models \\
+\hline
+\code{treatweight} & Treatment evaluation with or without sample selection correction (Section \ref{sample selection}).\\
+\code{medweight} & Causal mediation analysis (Section \ref{mediation}).\\
+\code{lateweight} & Local average treatment effect with covariates (Section \ref{late}).\\
+\code{medlateweight} & Causal mediation analysis with instrumental variables (Section \ref{iv_mediation}).\\
+\hline
+\end{tabularx}
+\end{table}
+
+The function \code{treatweight} implements treatment evaluation under treatment selection on observables, optionally with correcting for sample selection or non-ignorable outcome attrition based on either a selection on observables/missing at random assumption or an instrument. To tackle the double selection problem  into the treatment and into the subpopulation with non-missing outcomes, it makes use of both treatment and selection propensity scores to appropriately reweigh observations by IPW, see \citet{Hu12,Hu14}. The function \code{treatweight} allows computing the average treatment effect in the total population (ATE) and on the treated (ATET).
+
+The function \code{medweight} implements mediation analysis to investigate the causal mechanisms of a binary treatment under selection on observables based on IPW. More specifically, it computes (i) the (total) average treatment effect, (ii) the average natural \emph{indirect} effect, which operates through an intermediate outcome (or mediator) situated on the causal path between the treatment and the outcome, and (iii) the (unmediated) average natural \emph{direct} effect, see \citet{Hu2014}. The \emph{indirect} and \emph{direct} effect estimates are returned under either potential treatment state. The function \code{treatweight} allows computing the effects for both the total population and the subpopulation of the treated.
+
+The function \code{lateweight} returns the local average treatment effect (LATE) of a binary endogenous treatment based on IPW using a binary endogenous instrument that is conditionally valid given observed covariates, see \citet{Fr07}. In addition, it returns the intention-to-treat effect of the instrument on the outcome, as well as first-stage effect of the instrument on the treatment. The function \code{lateweight} permits estimating the local average treatment effect among all subjects whose treatment complies with the instrument (LATE) and among treated compliers (LATTs) by weighing units by the inverse of their instrument propensity scores.
+
+The function \code{medlateweight} computes the causal mechanisms (natural direct and indirect effects) of a binary treatment among treatment compliers based on distinct instrumental variables (IVs) for the treatment and the mediator, which are assumed to be conditionally valid given a set of observed covariates. The treatment and its instrument are assumed to be binary while the mediator and its instrument are assumed to be continuous. This motivates combining the LATE approach with a control function approach for tackling mediator endogeneity, see Theorem 1 in \citet{FrHu17}. The function \code{medlateweight} yields (i) the (total) local average treatment effect (LATE) among compliers based on IPW, (ii) the average natural \emph{direct} and \emph{indirect} effects under either potential treatment state among compliers based on IPW, and (iii) parametric direct and indirect effect estimates (imposing effect homogeneity across treatment states) based on regression.
+
+Details on the models and the implementation of the corresponding estimators in the \pkg{causalweight} package are provided in the following Sections \ref{sample selection} to \ref{iv_mediation}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Treatment evaluation with sample selection correction}\label{sample selection}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The function \code{treatweight} implements treatment effect evaluation when the treatment selection is related to observed covariates, optionally with considering sample selection/non-random outcome attrition. The latter case constitutes a double selection problem (i) into the treatment (selection on observables) and (ii) into the subpopulation for which the outcome is observed (selection on unobservables). The function \code{treatweight} computes the average treatment effect (ATE) and the average treatment effect on the treated (ATET) by weighing observations by the inverse of (nested) propensity scores. The nested weights control for  treatment selection bias due to non-random treatment assignment and sample selection bias in the subpopulation with observed outcomes, see \citet{Hu12,Hu14}.
+
+\subsection{Model}
+
+When estimating the causal effect of a binary treatment $D$ on an outcome $Y$, researchers are typically confronted with the identification issue that take-up of $D$ is selective. As a further complication, $Y$ might only be observed for a subpopulation that is non-randomly selected, as indicated by a binary sample selection variable $S$. We tackle the former issue by assuming treatment selection on observed covariates $X$ and the latter issue by either assuming ignorability of sample selection given observables, or the availability of an instrument $Z$ that is conditionally valid.
+
+We consider a general model, in which outcome $Y$ is an unknown function of two observed components, the binary treatment $D$ and the vector of covariates $X$, and a possibly multidimensional unobserved term $U$:
+\begin{eqnarray}\label{outeq}
+Y&=&\varphi (D,X,U),
+\end{eqnarray}
+where $\varphi(\cdot)$ is an unknown function.
+
+While $D$ and $X$ are assumed to be observed for everyone,  the \code{treatweight} function permit for sample selection, implying that outcome $Y$ is only observed for a subpopulation as indicated by the binary selection indicator $S$. Empirical examples for such set-ups include wage equations (where $S$ is employment), see \citet{Gr74} and \citet{He76,Heck74}, the evaluation of effects of educational interventions on test scores (where $S$ is participation in the test), see \citet{AnBeKr04} and \citet{AnLaOr09}, or loss of outcome follow-up in repeated surveys. In our model, the selection indicator is either assumed to be a function of the treatment, the covariates, and an unobserved term, or of the previously mentioned terms and an instrument:
+\begin{eqnarray}\label{seleq}
+S&=&I\{\eta (D,X)\geq V\}\text{ (scenario 1),}\\
+S&=&I\{\zeta (D,X,Z)\geq V\}\text{ (scenario 2).}
+\end{eqnarray}
+$I\{\cdot \}$ denotes the indicator function and $\eta(\cdot),\zeta(\cdot)$ are unknown functions. $Z$ represents a one or multi-dimensional instrument which is observable for all units and not directly related with the outcome. $V$ is an unobserved term. If it is not associated with $U$, sample selection is related to observables or missing at random (MAR) in the denomination of \citet{Ru76b}. If $V$ is associated with $U$, $S$ is endogenous even when controlling for $(D,X)$. In this case, identification crucially hinges on the availability of an instrument $Z$ that is relevant for $S$ in the sense that it shifts the selection probability conditional on $(D,X)$ but does not appear in $\varphi$ (exclusion restriction), as in scenario 2 of \eqref{seleq}. In general, at least one element in $Z$ needs to be continuous.
+
+To define the causal effect of $D$, we utilize the potential outcome framework advocated by \citet{Rubin74}, among others. We denote the potential outcome for individual $i$ and some hypothetical treatment $D=d$ as
+\begin{eqnarray}
+Y_{i}(d) &=&\varphi (d,X_{i},U_{i})\text{.}
+\end{eqnarray}%
+The difference $Y_{i}(1)-Y_{i}(0)$ would yield the individual treatment effect, but is unknown to the researcher, because each individual is either treated or not treated and cannot appear in both states of the world at the same time. The average treatment effect (ATE), which can be identified under assumptions outlined in the following section, is given by the mean difference of the potential outcomes under treatment and non-treatment:
+\begin{eqnarray}
+\Delta &=&\E[Y(1)]-\E[Y(0)].
+\end{eqnarray}
+A further parameter of policy interest, is the mean effect among those receiving the treatment, the average treatment effect on the treated (ATET):
+\begin{eqnarray}
+\Delta_{D=1}&=&\E[Y(1)|D=1]-\E[Y(0)|D=1].
+\end{eqnarray}
+
+\subsection{Identification}
+
+In the absence of sample selection, the ATE is identified if $Y(1), Y(0)$ are independent of $D$ conditional on $X$ (selection on observables) and the treatment propensity score  $\pi(X) \equiv \Pr(D=1|X)$ is larger than zero and smaller than 1 almost surely (common support), see \citet{ImWo08}. The ATE then corresponds to the following expression based on weighing by the inverse of the propensity score:
+\begin{eqnarray}
+\Delta &=& \E\left[ \frac{D \cdot Y}{\pi(X)} \right] - \E\left[ \frac{(1-D)\cdot Y}{1-\pi(X)} \right].  \label{ate0}
+\end{eqnarray}%
+The idea of inverse probability weighting (IPW) goes back to \citet{HoTh52}, who first proposed an estimator of the population mean in the presence of non-randomly missing data. The ATET is obtained by multiplying the expressions in the expectation operators of \eqref{ate0} by $\pi(X)/\Pr(D=1)$, see \citet{Hirano+00}, which corresponds to:
+\begin{eqnarray}
+\Delta_{D=1} &=& \E\left[ \frac{D \cdot Y}{\Pr(D=1)} \right] - \E\left[ \frac{(1-D)\cdot Y\cdot \pi(X)}{(1-\pi(X))\cdot\Pr(D=1)} \right].  \label{atet0}
+\end{eqnarray}
+The ATET is identified under the assumptions that $Y(0)$ is independent of $D$ conditional on $X$ and $\pi(X)$ is smaller than 1 almost surely.
+
+Complications prevail if the outcomes are observed for a selective subpopulation only, which requires further assumptions for identification. One possible condition is that sample selection $S$ is driven by observable variables but independent of $Y$ conditional on $(D,X)$, i.e.\ MAR (see scenario 1 in \eqref{seleq}). When adding this assumption to the previous ones, the ATE is identified by reweighing observations (additionally to the inverse treatment propensity score) by the inverse of the sample selection propensity score $p(D,X)\equiv \Pr(S=1|D,X)$, see \citet{Hu12}:
+\begin{eqnarray}
+\Delta &=& \E\left[ \frac{S \cdot D \cdot Y}{p(D,X)\cdot\pi(X)} \right] - \E\left[ \frac{S \cdot(1-D)\cdot Y}{p(D,X)\cdot(1-\pi(X))} \right],  \label{ate2a}
+\end{eqnarray}
+which hinges on $p(D,X)$ being larger than 0 almost everywhere as additional common support restriction.
+
+Alternatively to assuming MAR, sample selection might be tackled by an instrumental variable strategy, see see scenario 2 in \eqref{seleq}. In this context, $\Delta$ is identified under the following assumptions, see \citet{Hu14}: (i) satisfaction of the selection on observables assumption in the total population as before, (ii) availability of an instrument for selection that satisfies the exclusion restriction such that the sample selection propensity score $\Pr(S=1|D,X,Z)$ is a valid control function, (iii) independence of $(U,V)$  and $(D,Z)$ conditional on $\Pr(S=1|D,X,Z)$ and $X$, and (iv) homogeneity of average treatment effects conditional on $X$. The ATE on the total population under sample selection is identified by weighing by the inverse of a nested treatment propensity score as well as the selection propensity score, given that specific common support conditions on the propensity scores hold:
+\begin{eqnarray}
+\Delta &=& \E\left[ \frac{S\cdot D\cdot Y}{p(W)\cdot
+\pi(X,p(W))}\right] - \E\left[ \frac{S\cdot (1-D)\cdot Y}{p(W)\cdot (1-\pi(X,p(W)))}\right].  \label{ate2b}
+\end{eqnarray}
+$\pi(X,p(W))$ denotes the treatment propensity score $\Pr(D=1|X,p(W))$, i.e., the probability of being treated conditional on $X$ and $p(W)$, with $W\equiv(D,X,Z)$ and $p(W) \equiv \Pr(S=1|D,X,Z)$. Analogously to \eqref{atet0}, multiplying the expressions in the expectation operators of \eqref{ate2a} and \eqref{ate2b} by $\pi(X)/\Pr(D=1)$ yields the ATET under the respective set of assumptions.
+
+
+\subsection{Estimation}
+
+Assuming an i.i.d.\ sample of $n$ units prior to selection, indexed by $i=1,...,n$, we briefly discuss the estimation of the ATE under sample selection using an instrument based on the normalized sample analog of \eqref{ate2b}. Estimation of treatment effects under different sets of assumptions (i.e.\ MAR or no sample selection) proceeds analogously. Let $\hat{p}(W)$ and $\hat{\pi}(X,\hat{p}(W))$ denote estimates of the sample selection propensity score $p(W)$ and the treatment propensity score $\pi(X,p(W))$, respectively. A general 3-step estimation approach proceeds as follows: \vspace{10 pt}\newline
+(a) Estimate $\hat{p}(W)$ by regressing $S$ on $(1,D,X,Z)$,\newline
+(b) estimate $\hat{\pi}(X,\hat{p}(W))$ by regressing $D$ on $(1,X,\hat{%
+p}(W))$, \newline
+(c) obtain an estimate of the ATE, denoted by $\hat{\Delta}$, as the normalized sample analogue of \eqref{ate2b} in which $\hat{p}(W)$ and $\hat{\pi}(X,\hat{p}(W))$ are used as plug-in estimates. \vspace{10 pt}\newline
+The propensity scores are estimated by probit or logit models. The normalized sample analogue of \eqref{ate2b} corresponds to
+\begin{eqnarray}
+\hat{\Delta} &=& \sum_{i=1}^{n}\frac{S_{i}\cdot D_{i}\cdot Y_{i}}{\hat{\pi}(X_{i},\hat{p}(W_{i}))}\bigg/ \sum_{i=1}^{n}\frac{S_{i}\cdot D_{i}}{\hat{\pi}(X_{i},\hat{p}(W_{i}))} \nonumber \\
+&-& \sum_{i=1}^{n}\frac{S_{i}\cdot (1-D_{i})\cdot Y_{i}}{\hat{p}(W_{j})\cdot(1-\hat{\pi}(X_{i},\hat{p}(W_{i})))}\bigg/\sum_{i=1}^{n}\frac{S_{i}\cdot (1-D_{i})}{\hat{p}(W_{j})\cdot(1-\hat{\pi}(X_{i},\hat{p}(W_{i})))}.
+\end{eqnarray}
+The normalizations $\sum_{i=1}^{n}\frac{S_{i}\cdot D_{i}}{\hat{\pi}(X_{i},\hat{p}(W_{i}))}$ and $\sum_{i=1}^{n}\frac{S_{i}\cdot (1-D_{i})}{\hat{p}(W_{j})\cdot(1-\hat{\pi}(X_{i},\hat{p}(W_{i})))}$ ensure that the weights in each treatment group add up to unity. This may improve the finite sample properties of the estimator, see for instance the discussions in \citet{Im04} and \citet{BuDNMC09}.
+
+This and other semiparametric IPW estimators discussed further below can be expressed as sequential GMM estimators where parametric propensity score estimation represents the first step and effect estimation the second step, see \citet{Ne84}. It follows from his results that our methods are $\sqrt{n}$-consistent and asymptotically normal under standard regularity conditions. Therefore, the i.i.d.\ bootstrap is a valid inference method for treatment effect estimators based on IPW, see also \citet{Hirano+00}. The function \code{treatweight} allows specifying the number of bootstrap replications for computing standard errors. Furthermore, it offers a trimming rule for discarding observations with extreme propensity scores to improve overlap, see \citet{CrHoImMi09}.  The default is to discard observations with treatment propensity scores smaller than 0.05 (5\%) or larger than 0.95 (95\%), when considering the ATE or larger than 0.95 when considering the ATET. When a sample selection correction is included, the default is to discard observations with sample selection propensity scores smaller than 0.05.
+
+\subsection[{Examples in R}]{Examples in \proglang{R}}
+
+This section presents (i) the input arguments of the \code{treatweight} function, (ii) the output stored in the object generated by \code{treatweight}, and (iii) two examples for ATE estimation with and without sample selection, respectively.
+
+\subsubsection[{Input arguments of treatweight}]{Input arguments of \code{treatweight}}
+
+The input arguments of \code{treatweight} are:
+
+\begin{longtable}{p{.15\asdf} p{.85\asdf}}
+\caption{Input arguments of the \code{treatweight} function}\\
+%\begin{table}
+%\centering
+%\begin{tabularx}{\textwidth}{lX}
+\hline
+Variables & Features of the variables \\
+\hline
+\endfirsthead
+\multicolumn{2}{l@{}}{\ldots continued}\\
+\hline
+Variables & Features of the variables \\
+\hline
+\endhead
+\hline
+\multicolumn{2}{@{}r}{continued \ldots }\\
+\endfoot
+\hline
+\endlastfoot
+\code{y} & Dependent variable.\\
+\code{d} & Treatment, must be binary (either 1 or 0), must not contain missings.\\
+\code{x} & Confounders of the treatment and outcome, must not contain missings.\\
+\code{s} & Selection indicator. Must be 1 if \code{y} is observed (non-missing) and 0 if \code{y} is not observed (missing). Default is \code{NULL}, implying that \code{y} does not contain any missings.\\
+\code{z} & Optional instrumental variable(s) for selection \code{s}. If \code{NULL}, outcome selection based on observables (\code{x},\code{d}) - known as "missing at random" - is assumed. If \code{z} is defined, outcome selection based on unobservables - known as "non-ignorable missingness" - is assumed. Default is \code{NULL}. If \code{s} is \code{NULL}, \code{z} is ignored.\\
+\code{selpop} & Only to be used if both \code{s} and \code{z} are defined. If \code{TRUE}, the effect is estimated for the selected subpopulation with \code{s} $=$ 1 only. If FALSE, the effect is estimated for the total population (note that this relies on somewhat stronger statistical assumptions). Default is \code{FALSE}. If \code{s} or \code{z} is \code{NULL}, \code{selpop} is ignored.\\
+\code{ATET} & If \code{FALSE}, the average treatment effect (\code{ATE}) is estimated. If \code{TRUE}, the average treatment effect on the treated (\code{ATET}) is estimated. Default is \code{FALSE}.\\
+\code{trim} & Trimming rule for discarding observations with extreme propensity scores. If \code{ATET} $=$ \code{FALSE}, observations with $\Pr(D=1|X)<$ \code{trim} or $\Pr(D=1|X)>(1-$\code{trim}) are dropped. If \code{ATET} $=$ \code{TRUE}, only those observations with $\Pr(D=1|X)>(1-$\code{trim}) are dropped. If \code{s} is defined and \code{z} is \code{NULL}, observations with extremely low selection propensity scores, $\Pr(S=1|D,X)<$ \code{trim}, are discarded, too. If \code{s} and \code{z} are defined, the treatment propensity scores to be trimmed change to $\Pr(D=1|X,\Pr(S=1|D,X,Z))$. If in addition \code{selpop} $=$ \code{TRUE}, observation with $\Pr(S=1|D,X,Z)<$ \code{trim} are discarded, too. Default for \code{trim} is 0.05.\\
+\code{logit} & If \code{FALSE}, probit regression is used for propensity score estimation. If \code{TRUE}, logit regression is used. Default is \code{FALSE}.\\
+\code{boot} & Number of bootstrap replications for estimating standard errors. Default is 1999. \\
+\hline
+%\end{tabularx}
+%\end{table}
+\end{longtable}
+
+\subsubsection[{The treatweight object}]{The \code{treatweight} object}
+
+A \code{treatweight} object contains six components all of which can be referenced by a dollar sign (\code{\$}), see the examples in this section below. These components are:
+
+\begin{longtable}{p{.15\asdf} p{.85\asdf}}
+\caption{Components of the \code{treatweight} object}\\
+%\begin{table}
+%\centering
+%\begin{tabularx}{\textwidth}{lX}
+\hline
+Components & Description of the components \\
+\hline
+\endfirsthead
+\multicolumn{2}{l@{}}{\ldots continued}\\
+\hline
+Components & Description of the components \\
+\hline
+\endhead
+\hline
+\multicolumn{2}{@{}r}{continued \ldots }\\
+\endfoot
+\hline
+\endlastfoot
+\code{effect} & Average treatment effect (\code{ATE}) if \code{ATET} $=$ \code{FALSE} or the average treatment effect on the treated (\code{ATET}) if \code{ATET} $=$ \code{TRUE}.\\
+\code{se} & bootstrap-based standard error of the effect.\\
+\code{pval} & p-value of the effect.\\
+\code{y1} & mean potential outcome under treatment.\\
+\code{y0} & mean potential outcome under control.\\
+\code{ntrimmed} & number of discarded (trimmed) observations due to extreme propensity score values.\\
+\hline
+%\end{tabularx}
+%\end{table}
+\end{longtable}
+
+\subsubsection{Example for estimating the ATE without sample selection}\label{exsel1}
+
+This example estimates the ATE based on equation \eqref{ate0} in simulated data. The sample size \code{n} is set to 10'000. The seeds set when generating random variables (\code{set.seed()}) enable the replication of the results. The following chunk of \proglang{R} input code results in the output of the function \code{treatweight}:
+
+
+\begin{Schunk}
+\begin{Sinput}
+> n=10000
+> set.seed(100); x=rnorm(n)
+> set.seed(101); d=(0.25*x+rnorm(n)>0)*1
+> set.seed(102); y=0.5*d+0.25*x+rnorm(n)
+> output=treatweight(y=y,d=d,x=x,trim=0.05,ATET=FALSE,logit=TRUE, boot=19)
+> cat("ATE: ",round(c(output$effect),3),", standard error: ",
++     round(c(output$se),3), ", p-value: ",round(c(output$pval),3))
+> output$ntrimmed
+\end{Sinput}
+\end{Schunk}
+
+The following chunk of output code displays two lines (based on the \code{treatweight} object called \code{output}). The first line gives the ATE estimate, standard error, and p-value, respectively (rounded to three decimals). The second line provides the number of observations discarded by the trimming rule.
+
+\begin{Schunk}
+\begin{Soutput}
+ATE:  0.488 , standard error:  0.022 , p-value:  0
+\end{Soutput}
+\begin{Soutput}
+[1] 0
+\end{Soutput}
+\end{Schunk}
+
+\subsubsection{Example for estimating the ATE under sample selection based on an instrument}\label{exsel2}
+
+This example estimates the ATE under sample selection based on equation \eqref{ate2b} in simulated data. The sample size \code{n} is set to 10'000. Matrix \code{e} reflects the unobserved terms of equations \eqref{outeq} and \eqref{seleq} for computing \code{y} and \code{s} and follows a multivariate normal distribution with covariance matrix \code{sigma}. The following chunk of \proglang{R} input code results in the output of the function \code{treatweight}:
+
+\begin{Schunk}
+\begin{Sinput}
+> n=10000
+> sigma=matrix(c(1,0.6,0.6,1),2,2)
+> set.seed(100); e=(2*rmvnorm(n,rep(0,2),sigma))
+> set.seed(101); x=rnorm(n)
+> set.seed(102); d=(0.5*x+rnorm(n)>0)*1
+> set.seed(103); z=rnorm(n)
+> s=(0.25*x+0.25*d+0.5*z+e[,1]>0)*1
+> y=d+x+e[,2]; y[s==0]=0
+> output=treatweight(y=y,d=d,x=x, s=s,z=z,selpop=FALSE,trim=0.05,ATET=FALSE,
++                    logit=TRUE,boot=19)
+> cat("ATE: ",round(c(output$effect),3),", standard error: ",
++     round(c(output$se),3), ", p-value: ",round(c(output$pval),3))
+> output$ntrimmed
+\end{Sinput}
+\end{Schunk}
+
+The first line of the next chunk of output code (again based on the \code{treatweight} object called \code{output}) provides the ATE under sample selection, the standard error, and the p-value, respectively (rounded to three decimals). The second line gives the number of observations discarded by the trimming rule.
+
+\begin{Schunk}
+\begin{Soutput}
+ATE:  0.966 , standard error:  0.073 , p-value:  0
+\end{Soutput}
+\begin{Soutput}
+[1] 11
+\end{Soutput}
+\end{Schunk}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Causal mediation analysis}\label{mediation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The function \code{medweight} estimates the causal mechanisms of a binary treatment under selection on observables, based on inverse probability weighting. More specifically, it provides (i) the (total) average treatment effect, (ii) the average natural \emph{indirect} effect of the treatment operating through an intermediate variable (or mediator) that is situated on the causal path between the treatment and the outcome, and (iii) the natural \emph{direct} effect, see \citet{Hu2014}. The \emph{indirect} and \emph{direct} effect estimates are returned under either potential treatment state. The evaluation of direct and indirect effects is commonly referred to as mediation analysis. The function \code{treatweight} performs causal mediation analysis both for the total population as well as the subpopulation of the treated.
+
+\subsection{Model}\label{medmodel}
+
+In many evaluations not only the (total) treatment effect appears relevant, but also the causal mechanisms through which it operates. In this case, one would like to disentangle the \emph{direct} effect of the treatment on the outcome as well as the \emph{indirect} ones that materialize through one or more intermediate variables, so-called mediators. For instance, when assessing the employment effects of an active labor market policy, policy makers might want to know to which extent the total impact comes from increased search effort, human capital, or other mediators that are themselves affected by the policy. However, even experiments do not straightforwardly identify causal mechanisms. As discussed in \citet{RoGr92}, random treatment assignment does not imply exogeneity of the mediator. Therefore, the total effect cannot be disentangled by simply conditioning on a mediator, because this generally introduces selection bias coming from variables influencing both the mediator and the outcome, see \citet{Rosenbaum84}.
+
+For defining the parameters of interest, the potential outcome framework is used, which has been considered in the direct and indirect effects framework for instance by \citet{Ru04} and \citet{Albert2008}. Let $Y(d), M(d)$ denote the potential outcome and the potential mediator state under treatment $d$ $\in$ $\{0,1\}$. For each unit only one of the two potential outcomes and mediator states, respectively, is observed, because the realized outcome and mediator values are $Y=D\cdot Y(1) + (1-D)\cdot Y(0)$ and $M=D\cdot M(1) + (1-D)\cdot M(0)$.
+
+The ATE is defined by $\Delta=\E[Y(1)-Y(0)]$. To disentangle this total effect into a direct and indirect (through $M$) causal channel, first note that the potential outcome can be rewritten as a function of both the treatment and the intermediate variable $M$: $Y(d)=Y(d,M(d))$. It follows that the (average) direct effect is identified by
+\begin{eqnarray}
+\theta (d) &=& \E[Y(1,M(d))-Y(0,M(d))],\quad d\in\{0,1\},
+\end{eqnarray}
+i.e., by exogenously varying the treatment but keeping the mediator fixed at its potential value for $D=d$. Equivalently, the (average) indirect effects is defined as
+\begin{eqnarray}
+\delta (d) &=& \E[Y(d,M(1))-Y(d,M(0))],\quad d\in\{0,1\},
+\end{eqnarray}
+i.e., by exogenously shifting the mediator to its potential values under treatment and non-treatment but keeping the treatment fixed at $D=d$. \citet{Pearl01} refers to these parameters as natural direct and indirect effects, \citet{RoGr92} and \citet{Robins2003} as total or pure direct and indirect effects.
+
+The ATE is the sum of the direct and indirect effects defined upon opposite treatment states:
+\begin{eqnarray}\label{ate}
+\Delta&=&\E[Y(1,M(1))-Y(0,M(0))] \notag \\
+&=&\E[Y(1,M(1))-Y(0,M(1))]+ \E[Y(0,M(1))-Y(0,M(0))] = \theta(1) + \delta(0) \notag \\
+&=&\E[Y(1,M(0))-Y(0,M(0))]+ \E[Y(1,M(1))-Y(1,M(0))]=\theta(0) + \delta(1).
+\end{eqnarray}
+This can be seen from adding and subtracting $\E[Y(0,M(1))]$ after the first and $\E[Y(1,M(0))]$ after the third equality. The notation $\theta(1),\theta(0)$ and $\delta(1),\delta(0)$ indicates that effects are potentially heterogeneous w.r.t.\ potential treatment state, which permits interaction effects between the treatment and the mediator. However, the effect remain unidentified without further assumptions, as either $Y(1,M(1))$ or $Y(0,M(0))$ is observed for any unit, whereas $Y(1,M(0))$ and $Y(0,M(1))$ are never observed. Therefore, identification of direct and indirect effects hinges on the existence of exogenous variation in the treatment and the mediator.
+
+\subsection{Identification}\label{id1}
+
+We subsequently discuss the identification of natural direct and indirect effects based on control variables (for tackling selection into $D$ and $M$) that are either not affected by the treatment (Section \ref{pretreatconf}) or partly a function of the treatment (Section \ref{posttreatconf}).
+
+\subsubsection{Identification given control variables not affected by the treatment}\label{pretreatconf}
+
+The identification of direct and indirect effects hinges on selection on observables assumptions w.r.t.\ $D$ and $M$, see for instance \citet{ImKeYa10}. They imply that the treatment-mediator and treatment-outcome relations are unconfounded by unobservables when controlling for observed covariates $X$ and that the mediator-outcome relation is unconfounded given $(D,X)$. Formally, $D$ must be independent of the potential outcomes and mediators, $\{Y(d',m), M(d)\}$,  given $X$, while $M$ must be $Y(d,m)$ independent of   given $(D,X$), with $d',d \in \{0,1\}$ and $m$ in the support of $M$. Importantly, $X$ must not be affected by $D$, which is satisfied if both the controls for the treatment and the mediator are pre-treatment variables. Furthermore, a specific common support assumption must hold which guarantees that comparable observations in terms of $X$ and in terms of both $X$ and $D$ exist across treatment states and across mediator states, respectively. Formally, the treatment propensity score $\Pr(D=1| M, X)$ must be larger than zero and smaller than one almost surely.
+
+\citet{Hu2014} shows that under these assumptions, the average direct effect is identified by
+\begin{eqnarray}\label{prop1}
+\theta (d) &=& \E\left[ \left( \frac{Y\cdot D}{\Pr (D=1|M,X)}-\frac{Y\cdot (1-D)}{%
+  1-\Pr (D=1|M,X)}\right) \cdot \frac{\Pr (D=d|M,X)}{\Pr (D=d|X)}\right].
+\end{eqnarray}
+Equation \eqref{prop1} demonstrates that by IPW, the distributions of both $M$ and $X$ are balanced across treated and non-treated groups such that the direct effect is identified. In particular, the distribution of the mediator in both groups corresponds to that of $M(d)$ in the total population. Similarly, the indirect effect, which by \eqref{ate} corresponds to the difference between the average and the direct effect defined on the opposite treatment state ($\delta(d)=\Delta-\theta(1-d)$) is given by
+\begin{eqnarray}\label{prop2}
+\delta (d)&=&\E\left[ \frac{Y\cdot I\{D=d\}}{\Pr (D=d|M,X)}\cdot \left(\frac{\Pr(D=1|M,X)}{\Pr (D=1|X)}-\frac{1-\Pr(D=1|M,X) }{1-\Pr(D=1|X)}\right)\right].
+\end{eqnarray}
+An attractive feature of expressions \eqref{prop1} and \eqref{prop2} is that they are agnostic about the dimension of $M$ such that both scalar or vectors of mediators can be considered. In either case, identification relies on reweighing by the treatment propensity scores  $\Pr (D=1|M,X)$ and $\Pr (D=1|X)$, which makes estimation straightforward even when $M$ is multidimensional. Multiplying the expressions in the expectation operators of \eqref{prop1} and \eqref{prop2} by $\pi(X)/\Pr(D=1)$ yields the direct and indirect effects, respectively, on the treated.
+
+\subsubsection{Identification when some controls are affected by the treatment}\label{posttreatconf}
+
+We maintain that $X$ reflects control variables not affected by the treatment but now permit that $D$ has an effect on observed post-treatment confounders of the mediator-outcome relation, which we denote by  $W$. This appears particularly important in applications with a non-negligible time lag between $D$ and $M$ such that $X$ may be insufficient to control for selection into the mediator. We rewrite the potential mediator and potential outcome as functions of $W$, too: $M(d)=M(d,W(d))$ and $Y(d,M(d))=Y(d,M(d,W(d)),W(d))$, where $W(d)$ is the vector of potential values of $W$ for $D=d$.
+
+Treatment assignment $D$ must be (i) independent of $\{Y(d,m,w'), M(d',w), W(d'')\}$  given $X$, as well as (ii) independent of $\{Y(d,m,w''),  M(d',w')\}$  given $W,X$, for $d,d',d'' \in \{0,1\}$ and $m,w',w$ in the support of $M,W$. While condition (i) is analogous to the selection on observables assumption w.r.t.\ $D$ in Section \ref{pretreatconf}, condition (ii) requires that treatment assignment remains ignorable when controlling for post-treatment variables $W$ in addition to $X$. Intuitively, this implies that all covariates affecting both $W$ and $M$ or $Y$ are included in $X$. Concerning the mediator, $M$ is  assumed to be independent of $Y(d,m, w)$  given $(D,X,W)$. This weaker than the corresponding assumption in Section \ref{posttreatconf}, as post-treatment controls $W$ are now allowed to enter the conditioning set. Finally, the common support restriction that $\Pr(D=1| M, W,X)$ is larger than zero and smaller than one almost surely must be satisfied.
+
+\citet{Hu2014} shows that these assumptions allow identifying the following direct effect by IPW:
+\begin{eqnarray}\label{dir.x}
+\theta^*(d) &=& \E[Y(1,M(d,W(d)),W(d))-Y(0,M(d,W(d)),W(d))],\\
+&=&\E\left[ \left( \frac{Y\cdot D}{\Pr (D=1|M,W,X)}-\frac{Y\cdot (1-D)}{%
+  1-\Pr (D=1|M,W,X)}\right) \cdot \frac{\Pr (D=d|M,W,X)}{\Pr (D=d|X)}\right].\notag
+\end{eqnarray}
+$\theta(d)^*$ corresponds to the change in the mean potential outcome due to an exogenous change in the treatment, while keeping the mediator and the post-treatment covariates fixed at their potential values given $d$. This effect generally differs from the direct effect outlined in Section \ref{medmodel}, which in the notation of the current section corresponds to  $\theta(d)=\E[Y(1,M(d,W(d)),W(1))-Y(0,M(d,W(d)),W(0))]$. That is, while $\theta(d)$ may include causal effects of $D$ on $Y$ that operate through $W$ but not $M$, $\theta(d)^*$ corresponds to the direct effect neither operating through $M$, nor $W$.
+
+
+Furthermore, the following (partial) indirect effect is identified:
+\begin{eqnarray}\label{indir.p.x}
+\delta^*(d) &=& \E[Y(d,M(1,W(d)),W(d))-Y(d,M(0,W(d)),W(d))] \notag \\
+&=& \E \left[ \frac{Y\cdot I\{D=d\}}{\Pr (D=d|M,W,X)}\cdot \frac{\Pr(D=d|W,X)}{\Pr(D=d|X)} \cdot \left(\frac{\Pr(D=1|M,W,X)}{\Pr(D=1|W,X)} \right.\right. \\
+                                                                                                                          && \left.\left. \frac{1-\Pr(D=1|M,W,X)}{1-\Pr(D=1|W,X)}\right) \right].\notag
+\end{eqnarray}
+$\delta^*(d)$ is the indirect effect going from $D$ via $M$ to $Y$ but not operating through the post-treatment confounders, as $W$ is fixed at its potential value under $D=d$. This effect generally differs from the indirect effect outlined in Section \ref{medmodel}, which in the notation of the current section corresponds to  $\delta(d) = \E[Y(d,M(1,W(1)),W(d))-Y(d,M(0,W(0)),W(d))]$. $\delta(d)$ is the total indirect effect in the sense that it also accounts for all effects via $M$ which either come from $D$ directly or `take a devious route' through $W$. The devious route is not considered in $\delta^*(d)$, which is in this sense a partial indirect effect.
+
+While the assumptions made in this section permit obtaining $\theta(d)^*, \delta^*(d)$, the identification of $\theta(d), \delta(d)$ would require additional functional form restrictions, see \cite{AvinShpitserPearl2005}, which may be less attractive in empirical applications. Finally, multiplying the expressions in the expectation operators of the second lines of\eqref{dir.x} and \eqref{indir.p.x} by $\pi(X)/\Pr(D=1)$ yields the respective direct and indirect effects on the treated.
+
+\subsection{Estimation}\label{est1}
+
+Estimation using the function \code{medweight} is based on normalized versions of the sample analogs of the IPW-based identification results in Section \ref{id1}, with estimates of the propensity scores $\Pr (D=1|M,X)$ and $\Pr (D=1|X)$ serving as plug-in parameters. For instance, the normalized estimators of the direct effects under treatment and non-treatment in Section \ref{pretreatconf} are given by
+\begin{eqnarray}
+\hat{\theta}(1)&=&\frac{\sum Y_i \cdot D_i/\hat{p}(X_i)}{\sum D_i/\hat{p}(X_i)} - \frac{\sum Y_i \cdot (1-D_i)\cdot\hat{p}(M_i,X_i)/[(1-\hat{p}(M_i,X_i))\cdot\hat{p}(X_i)]}{\sum (1-D_i)\cdot\hat{p}(M_i,X_i)/[(1-\hat{p}(M_i,X_i))\cdot\hat{p}(X_i)]},\\
+\hat{\theta}(0)&=&\frac{\sum Y_i \cdot D_i\cdot(1-\hat{p}(M_i,X_i))/[\hat{p}(M_i,X_i)\cdot(1-\hat{p}(X_i))]}{\sum D_i\cdot(1-\hat{p}(M_i,X_i))/[\hat{p}(M_i,X_i)\cdot(1-\hat{p}(X_i))]}-\frac{\sum Y_i \cdot (1-D_i)/(1-\hat{p}(X_i))}{\sum (1-D_i)/(1-\hat{p}(X_i))}. \nonumber
+\end{eqnarray}
+$\hat{p}(M_i,X_i)$ and $\hat{p}(X_i)$ denote the respective estimates of the propensity scores $\Pr(D=1|M_i,X_i)$ and  $\Pr(D=1|X_i)$, obtained by by probit or logit regression.  The standard errors returned by the function \code{medweight} are based on the i.i.d.\ bootstrap. Furthermore, the function \code{medweight} includes an optional trimming rule for discarding observations with extreme propensity scores to improve overlap, see \citet{CrHoImMi09}. The default is to discard observations with treatment probabilities given the covariates and mediator(s) smaller than 0.05 (5\%) or larger than 0.95 (95\%).
+
+\subsection[{Example in R}]{Example in \proglang{R}}
+
+This section presents the input arguments of the \code{medweight} function. It then indicates the components stored in the object generated by \code{medweight}. Finally, it provides an example for computing the parameters of interest in a setting with post-treatment confounders.
+
+\subsubsection[{Input arguments of medweight}]{Input arguments of \code{medweight}}
+
+The input arguments of \code{medweight} are:
+
+\begin{longtable}{p{.15\asdf} p{.85\asdf}}
+\caption{Input arguments of the \code{medweight} function}\\
+%\begin{table}
+%\centering
+%\begin{tabularx}{\textwidth}{lX}
+\hline
+Variables & Features of the variables \\
+\hline
+\endfirsthead
+\multicolumn{2}{l@{}}{\ldots continued}\\
+\hline
+Variables & Features of the variables \\
+\hline
+\endhead
+\hline
+\multicolumn{2}{@{}r}{continued \ldots }\\
+\endfoot
+\hline
+\endlastfoot
+\code{y} & Dependent variable, must not contain missings.\\
+\code{d} & Treatment, must be binary (either 1 or 0), must not contain missings.\\
+\code{m} & Mediator(s), may be a scalar or a vector, must not contain missings.\\
+\code{x} & Pre-treatment confounders of the \code{d}, \code{m}, and/or \code{y}, must not contain missings.\\
+\code{w} & Post-treatment confounders of \code{m} and \code{y}. Default is \code{NULL}. Must not contain missings.\\
+\code{ATET} & If \code{FALSE}, the average treatment effect (\code{ATE}) and the corresponding direct and indirect effects are estimated. If \code{TRUE}, the average treatment effect on the treated (\code{ATET}) and the corresponding direct and indirect effects are estimated. Default is \code{FALSE}.\\
+\code{trim} & Trimming rule for discarding observations with extreme propensity scores. In the absence of post-treatment confounders (\code{w} $=$ \code{NULL}), observations with $\Pr(D=1|M,X)<$ \code{trim} or $\Pr(D=1|M,X)>(1-$\code{trim}) are dropped. In the presence of post-treatment confounders (\code{w} is defined), observations with $\Pr(D=1|M,W,X)<$ \code{trim} or $\Pr(D=1|M,W,X)>(1-$\code{trim}) are dropped. Default is 0.05.\\
+\code{logit} & If \code{FALSE}, probit regression is used for propensity score estimation. If \code{TRUE}, logit regression is used. Default is \code{FALSE}.\\
+\code{boot} & Number of bootstrap replications for estimating standard errors. Default is 1999.\\
+\hline
+%\end{tabularx}
+%\end{table}
+\end{longtable}
+
+\subsubsection[{The medweight object}]{The \code{medweight} object}
+
+A \code{medweight} object consists of two compontents, which can be referred to by a dollar sign (\code{\$}), see the example in this section below. These components are:
+
+\begin{longtable}{p{.15\asdf} p{.85\asdf}}
+\caption{Components of the \code{medweight} object}\\
+%\begin{table}
+%\centering
+%\begin{tabularx}{\textwidth}{lX}
+\hline
+Components & Description of the components \\
+\hline
+\endfirsthead
+\multicolumn{2}{l@{}}{\ldots continued}\\
+\hline
+Components & Description of the components \\
+\hline
+\endhead
+\hline
+\multicolumn{2}{@{}r}{continued \ldots }\\
+\endfoot
+\hline
+\endlastfoot
+\code{results} &  A 3x5 matrix containing the effect estimates in the first row (\code{effects}), standard errors in the second row (\code{se}), and p-values in the third row (\code{p-value}). The first column provides the total effect, namely the average treatment effect (\code{ATE}) if \code{ATET} $=$ \code{FALSE} or the average treatment effect on the treated (\code{ATET}) if \code{ATET} $=$ \code{TRUE}. The second and third columns provide the direct effects under treatment and control, respectively (\code{dir.treat}, \code{dir.control}), see equation \eqref{prop1} if \code{w} $=$ \code{NULL} (no post-treatment confounders) and equation \eqref{dir.x} if \code{w} is defined, respectively. If \code{w} $=$ \code{NULL}, the fourth and fifth columns provide the indirect effects under treatment and control, respectively (\code{indir.treat}, \code{indir.control}), see equation \eqref{prop2}. If \code{w} is defined, the fourth and fifth columns provide the partial indirect effects under treatment and control, respectively (\code{par.in.treat}, \code{par.in.control}), see equation \eqref{indir.p.x}.\\
+\code{ntrimmed} & Number of discarded (trimmed) observations due to extreme propensity score values.\\
+\hline
+%\end{tabularx}
+%\end{table}
+\end{longtable}
+
+\subsubsection{Illustrative example}\label{exmed}
+
+This example is based on artificial data. The sample size \code{n} is set to 10'000. The seeds set when generating random variables (\code{set.seed()}) enable the replication of the results. The following chunk of \proglang{R} input code results in the output of the function \code{medweight}:
+
+\begin{Schunk}
+\begin{Sinput}
+> n=10000
+> set.seed(100); x=rnorm(n);
+> set.seed(101); d=(0.25*x+rnorm(n)>0)*1
+> set.seed(102); w=0.2*d+0.25*x+rnorm(n);
+> set.seed(103); m=0.5*w+0.5*d+0.25*x+rnorm(n)
+> set.seed(104); y=0.5*d+m+w+0.25*x+rnorm(n)
+> output=medweight(y=y,d=d,m=m,x=x,w=w,trim=0.05,ATET=FALSE,logit=TRUE,
++ boot=19)
+> round(output$results,3)
+> output$ntrimmed
+\end{Sinput}
+\end{Schunk}
+
+The first component of the \code{medweight} object (\code{output$results}) shows the effect estimates, standard errors, and p-values for the five effect estimators rounded to three decimals. \code{ATE} refers to the (total) average treatment effect. \code{dir.treat}, \code{dir.control}, \code{par.in.treat}, and \code{par.in.control} indicate average direct and partial indirect effects under treatment and non-treatment, see \eqref{dir.x} and \eqref{indir.p.x}. The second component of the \code{medweight} object (\code{output$ntrimmed}) states the number of observations discarded due to the trimming rule. The output of \code{medweight} is:
+
+\begin{Schunk}
+\begin{Soutput}
+          ATE dir.treat dir.control par.in.treat par.in.control
+effect  1.340     0.530       0.537        0.520          0.517
+se      0.033     0.026       0.025        0.029          0.022
+p-value 0.000     0.000       0.000        0.000          0.000
+\end{Soutput}
+\begin{Soutput}
+[1] 0
+\end{Soutput}
+\end{Schunk}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Local average treatment effect with covariates}\label{late}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The function \code{lateweight} returns the local average treatment effect (LATE) of a binary endogenous treatment based on a binary endogenous instrument that is conditionally valid, implying that all confounders of the instrument and the outcome are observed. In addition, it returns the intention-to-treat effect of the instrument on the outcome, as well as first-stage effect of the instrument on the treatment. The function \code{lateweight} computes the LATE among compliers as well as the local average treatment effect among treated compliers (LATT) by weighting units by the inverse of their conditional instrument propensities given the observed covariates. %The following discussion closely follows the study of \citet{Fr07}.
+
+\subsection{Model and identification}\label{latemodident}
+
+Instrumental variable (IV) approaches for evaluating the causal effect of an endogenous treatment $D$ on an outcome $Y$ rest on specific relevance and validity conditions. First, the instrument, denoted by $Z$, needs to be relevant in the sense that it affects the treatment decision of (at least) some subjects, the so-called compliers, and does so monotonically (i.e.\ in the same direction for everyone). Second, $Z$ needs to be valid in the sense that it does not have a direct effect on the outcome $Y$ other than through the treatment (exclusion restriction) and that there exist no confounders jointly affecting $Z$ and $Y$. \citet{ImAn94} show that under these assumptions the LATE on compliers is identified in general treatment effect models.
+
+However, frequently the IV assumptions do not appear plausible without controlling for a set of covariates $X$. For instance, \citet{Card95} uses college proximity ($Z$) as IV to analyze the causal link between education ($D$) and wages ($Y$). If the instrument $Z$ were randomly assigned, it could be used as exogenous source of variation in $D$. However, college proximity and place of residence in general are most likely not random but correlated with household characteristics that might themselves influence the future wages of children  (e.g.\ through social networks and parental decisions). In such cases, it is necessary to control for confounders of $Z$ and $Y$.
+
+We introduce some further notation to formally state the IV assumptions conditional $X$ in the LATE framework for a binary $Z$, see for instance \citet{Abadie00}. Let $D(z)$ denote the potential treatment state under some instrument value $z \in \{1,0\}$. Secondly, let $Y(z,d)$ denote the potential outcome as a function of both the instrument and the treatment. Relevance implies that  $\Pr(D(1)> D(0))>0$, such that compliers exist in the population. Monotonicity is satisfied if $\Pr(D(1)\geq D(0)|X)=1$, such that so-called defiers with $D(0)>D(1)$ are ruled out conditional on $X$. As discussed in \citet{Vy02}, monotonicity holds if a general treatment effect model, say $D=\chi (Z,X,V)$, can be represented by the threshold crossing model $D=I\{\mu(Z,X)\geq \psi(V)\}$, where $\chi,\mu,\psi$ are unknown functions and $V$ reflects the unobservables. The potential treatment state is then given by $D(z)=I\{\mu(z,X)\geq \psi(V)\}$.
+
+Conditional validity requires that $Z$ is independent of $\{D(z), Y(z',d)\}$ given $X$ and $\Pr(Y(1,d)=Y(0,d)=Y(d)|X)=1$ for $z,z',d$ $\in$ $\{1,0\}$. This is satisfied if the outcome model corresponds to $Y=\varphi(D,X,U)$ (where $U$ is the unobserved term), implying that $Z$ does not affect $Y$, and if $Z$ is independent of $(U,V)$ given $X$. The potential outcome is then given by $Y(d)=\varphi(d,X,U)$. Finally, the common support restriction that $\Pr(Z=1|X)$ is larger than zero and smaller than one almost everywhere guarantees that no value of $X$ perfectly predicts $Z$.
+
+The LATE on compliers is defined as
+\begin{eqnarray}
+\Delta_c &=&\E[Y(1)-Y(0)|D(1)-D(0)=1]
+\end{eqnarray}
+As discussed in \citet{Fr07}, this parameter is identified by the ratio of to IPW expressions using $\Pr(Z=1|X)$ that reflect the intention to treat effect of $Z$ on  $Y$ (numerator) and the first stage effect of $Z$ on $D$ (denominator):
+\begin{eqnarray}\label{weightlate}
+\Delta_c&=&\frac{E[Y\cdot Z/\pi(X)-Y\cdot(1-Z)/(1-\pi(X))]}{E[D\cdot Z/\pi(X)-D\cdot(1-Z)/(1-\pi(X))]},
+\end{eqnarray}
+where $\pi(X)=\Pr(Z=1|X)$. The LATT, defined as $\Delta_{c,D=1} =\E[Y(1)-Y(0)|D(1)-D(0)=1,D=1]$, is obtained by multiplying the expressions in the expectation operators of \eqref{weightlate} by $\pi(X)/\Pr(Z=1)$, yielding
+\begin{eqnarray}
+\Delta_{c,D=1}=\frac{E[Y\cdot Z-Y\cdot(1-Z)\cdot\pi(X)/(1-\pi(X))]}{E[D\cdot Z-D\cdot(1-Z)\cdot\pi(X)/(1-\pi(X))]}.\label{latt}
+\end{eqnarray}
+
+
+\subsection{Estimation}
+
+The estimators returned by function \code{lateweight} are based on the ratio of the normalized sample analogs of the IPW-based identification results for the intention to treat and first stage effects in Section \ref{latemodident}. The estimator of the LATT, for instance, is given by:
+
+\begin{eqnarray}\label{late8}
+\hat{\Delta}_{c,D=1} &=& \frac{\frac{\sum Y_i \cdot Z_i}{\sum Z_i} - \frac{\sum Y_i \cdot (1-Z_i)\cdot \frac{\hat{\pi}(X_i)}{1-\hat{\pi}(X_i)}}{\sum (1-Z_i) \frac{\hat{\pi}(X_i)}{1-\hat{\pi}(X_i)}}}
+{\frac{\sum D_i \cdot Z_i}{\sum Z_i} - \frac{\sum D_i \cdot (1-Z_i)\cdot \frac{\hat{\pi}(X_i)}{1-\hat{\pi}(X_i)}}{\sum (1-Z_i) \frac{\hat{\pi}(X_i)}{1-\hat{\pi}(X_i)}}},
+\end{eqnarray}
+where $\hat{\pi}(X_i)$ denotes a probit or logit-based estimate of the instrument propensity score $\Pr(Z=1|X=x)$. Standard errors are computed using the i.i.d.\ bootstrap. Furthermore, the \code{lateweight} function provides an optional trimming rule for discarding observations with extreme propensity scores to improve overlap, see \citet{CrHoImMi09}. The default is to discard observations with treatment propensity scores smaller than 0.05 (5\%) or larger than 0.95 (95\%), when considering the LATE or larger than 0.95 when considering the LATT.
+
+\subsection[{Example in R}]{Example in \proglang{R}}
+
+This section presents the input arguments of the \code{lateweight} function and shows the output stored in the object generated by \code{lateweight}. Finally, it provides an example for computing the LATE.
+
+\subsubsection[{Input arguments of lateweight}]{Input arguments of \code{lateweight}}
+
+The input arguments of \code{lateweight} are:
+
+\begin{longtable}{p{.15\asdf} p{.85\asdf}}
+\caption{Input arguments of the \code{lateweight} function}\\
+%\begin{table}
+%\centering
+%\begin{tabularx}{\textwidth}{lX}
+\hline
+Variables & Features of the variables \\
+\hline
+\endfirsthead
+\multicolumn{2}{l@{}}{\ldots continued}\\
+\hline
+Variables & Features of the variables \\
+\hline
+\endhead
+\hline
+\multicolumn{2}{@{}r}{continued \ldots }\\
+\endfoot
+\hline
+\endlastfoot
+\code{y} & Dependent variable, must not contain missings.\\
+\code{d} & Treatment, must be binary (either 1 or 0), must not contain missings.\\
+\code{z} & Instrument for the endogenous treatment \code{d}, must be binary (either 1 or 0), must not contain missings.\\
+\code{x} & Confounders of \code{z} and \code{y}, must not contain missings.\\
+\code{LATT} & If \code{FALSE}, the local average treatment effect (\code{LATE}) among compliers (whose treatment reacts to the instrument) is estimated. If \code{TRUE}, the local average treatment effect on the treated (\code{LATT}) is estimated. Default is \code{FALSE}.\\
+\code{trim} & Trimming rule for discarding observations with extreme propensity scores. If \code{LATT} $=$ \code{FALSE}, observations with $\Pr(Z=1|X)<$ \code{trim} or $\Pr(Z=1|X)>(1-$\code{trim}) are dropped. If If \code{LATT} $=$ \code{TRUE}, only those observations with $\Pr(Z=1|X)>(1-$\code{trim}) are dropped. Default is 0.05.\\
+\code{logit} & If \code{FALSE}, probit regression is used for propensity score estimation. If \code{TRUE}, logit regression is used. Default is \code{FALSE}.\\
+\code{boot} & Number of bootstrap replications for estimating standard errors. Default is 1999.\\
+\hline
+%\end{tabularx}
+%\end{table}
+\end{longtable}
+
+\subsubsection[{The lateweight object}]{The \code{lateweight} object}
+
+A \code{lateweight} object consists of 10 compontens, which can be referenced by a dollar sign (\code{\$}). These components are:
+
+\begin{longtable}{p{.15\asdf} p{.85\asdf}}
+\caption{Components of the \code{lateweight} object}\\
+%\begin{table}
+%\centering
+%\begin{tabularx}{\textwidth}{lX}
+\hline
+Components & Description of the components \\
+\hline
+\endfirsthead
+\multicolumn{2}{l@{}}{\ldots continued}\\
+\hline
+Components & Description of the components \\
+\hline
+\endhead
+\hline
+\multicolumn{2}{@{}r}{continued \ldots }\\
+\endfoot
+\hline
+\endlastfoot
+\code{effect} & Local average treatment effect (\code{LATE}) among compliers if \code{LATT} $=$ \code{FALSE} or the local average treatment effect on treated compliers (\code{LATT}) if \code{LATT} $=$ \code{TRUE}.\\
+\code{se.effect} & Bootstrap-based standard error of the effect.\\
+\code{pval.effect} & p-value of the effect.\\
+\code{first} & First stage estimate of the complier share if \code{LATT} $=$ \code{FALSE} or the first stage estimate among treated if \code{LATT} $=$ \code{TRUE}.\\
+\code{se.first} & Bootstrap-based standard error of the first stage effect.\\
+\code{pval.first} & p-value of the first stage effect.\\
+\code{ITT} & Intention to treat effect (\code{ITT}) of \code{z} on \code{y} if \code{LATT} $=$ \code{FALSE} or the \code{ITT} among treated if \code{LATT} $=$ \code{TRUE}.\\
+\code{se.ITT} & Bootstrap-based standard error of the \code{ITT}.\\
+\code{pval.ITT} &  p-value of the \code{ITT}.\\
+\code{ntrimmed} & Number of discarded (trimmed) observations due to extreme propensity score values.\\
+\hline
+%\end{tabularx}
+%\end{table}
+\end{longtable}
+
+\subsubsection{Illustrative example}\label{exmed}
+
+This example is based on simulated data. The sample size \code{n} is set to 10'000. The seeds set when generating random variables (\code{set.seed()}) enable the replication of the results. The following chunk of \proglang{R} input code results in the output of the function \code{lateweight}:
+
+\begin{Schunk}
+\begin{Sinput}
+> n=10000
+> set.seed(100); u=rnorm(n)
+> set.seed(101); x=rnorm(n)
+> set.seed(102); z=(0.25*x+rnorm(n)>0)*1
+> set.seed(103); d=(z+0.25*x+0.25*u+rnorm(n)>0.5)*1
+> y=0.5*d+0.25*x+u
+> output=lateweight(y=y,d=d,z=z,x=x,trim=0.05,LATT=FALSE,logit=TRUE,boot=19)
+> cat("LATE: ",round(c(output$effect),3),", standard error: ",
++              round(c(output$se.effect),3), ", p-value: ",
++              round(c(output$pval.effect),3))
+> output$ntrimmed
+\end{Sinput}
+\end{Schunk}
+
+
+The output consists of two lines. The first line provides the LATE, the standard error of the effect, and its p-value, respectively. The second line shows the number of units discarded due to the trimming rule. The output of \code{lateweight} is:
+
+\begin{Schunk}
+\begin{Soutput}
+LATE:  0.524 , standard error:  0.059 , p-value:  0
+\end{Soutput}
+\begin{Soutput}
+[1] 0
+\end{Soutput}
+\end{Schunk}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Causal mediation analysis with instrumental variables}\label{iv_mediation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The function \code{medlateweight} computes the causal mechanisms (natural direct and indirect effects) of a treatment among treatment compliers based on distinct instrumental variables (IVs) for the treatment and the mediator. The treatment and its instrument are assumed to be binary while the mediator and its instrument are assumed to be continuous, see Theorem 1 in \citet{FrHu17}. The instruments must be conditionally valid given a set of observed covariates. A control function is used to tackle mediator endogeneity.  The function yields (i) the (total) local average treatment effect (LATE), (ii) the local average \emph{direct} effects under either potential treatment state, (iii) the local average \emph{indirect} effects under either potential treatment state, and parametric direct and indirect effect estimates (ruling out effect heterogeneity across potential treatment states), respectively.
+
+\subsection{Model}\label{medlatemodel}
+
+The function \code{medlateweight} disentangles the total effect of a \emph{binary } treatment $D$ on an outcome $Y$ among treatment compliers into a natural direct effect and a natural indirect effect  operating through a scalar mediator $M$. Identification is based on two distinct instruments $Z_{1}$ and $Z_{2} $ for the endogenous variables $D$ and $M$. The following mediation model is considered, which consists of a system of nonparametric equations:
+\begin{eqnarray}
+Y &=&\varphi (D,M,X,U), \quad M ~~=~~ \zeta (D,Z_{2},X,V), \quad D ~~=~~ I\{ \text{%
+  \ }\chi (Z_{1},X,W)\geq 0\text{\ }\} \text{,}  \label{outmodel}
+\end{eqnarray}%
+where $\varphi ,\zeta ,\chi $ are unknown functions. $U,V,W$ comprise unobservables that may be arbitrarily associated, so that $D$ and $M$ are in general endogenous. $X$ are observed covariates. $Z_{1}$ is the binary instrument for tackling the endogeneity of treatment $D$, henceforth denoted as the
+first instrument. $Z_{2}$ denotes the instrument for mediator $M$, referred to as the second instrument hereafter. It is assumed to contain at least one continuous variable, but may contain several (continuous and discrete) elements.
+
+Making use of the potential outcomes framework, let $Y(d,M(d^{\prime }))$ and $M(d)$ (in analogy to Section \ref{medmodel}) denote the potential outcome and the potential mediator state under treatment $d,d^{\prime }$ $\in $ $\{0,1\}$. In terms of our model, these parameters are defined for $d,d^{\prime }$ $\in $ $\{0,1\}$ as
+$M(d)=\zeta (d,Z_{2},X,V)$ and $Y(d,M(d^{\prime})=\varphi(d,M(d^{\prime }),X,U)=\varphi (d,\zeta(d^{\prime },Z_{2},X,V),X,U)$, respectively. In analogy to Section \ref{latemodident}, we define potential treatment state $D(z_{1})$ for $z_{1}$ $\in$ $\{0,1\}$, which in our model corresponds to $D(z_{1}) = I\{ \text{\ }\chi (z_{1},X,W)\geq 0\text{\ }\}$.
+
+The causal parameters of interest are defined in analogy to those in Section \ref{medmodel}, however, among the subpopulation of treatment compliers. The LATE ($\Delta_c$) as well as the natural direct ($\theta_c$) and indirect effects ($\delta_c (d)$ among compliers are given by:
+
+\begin{eqnarray}
+\Delta_c &=& \E[Y(1)-Y(0)|D(1)-D(0)=1]=E[Y(1,M(1))-Y(0,M(0))|D(1)-D(0)=1], \notag \\ \label{totallate}
+\theta_c (d) &=& \E[Y(1,M(d))-Y(0,M(d))|D(1)-D(0)=1],\\
+\delta_c (d) &=& \E[Y(d,M(1))-Y(d,M(0))|D(1)-D(0)=1],\quad \quad \text{for }d\in
+\{1,0\}.\notag
+\end{eqnarray}
+
+\subsection{Identification}\label{idmedlate}
+
+The identification of $\theta_c, \delta_c$ hinges on the following assumptions, which are discussed in more detail in Sections 3.1 and 3.2 of \citet{FrHu17}. Firstly, instruments $(Z_{1},Z_{2})$ are independent of the unobservables $(U,V,W)$ conditional on covariates $X$. Secondly, $Z_{1}$ is independent of $Z_{2}$ given $X$. Both assumptions are satisfied under a separate (i.e.\ independent) randomization of the instruments. By the mediation model outlined in Section \ref{medlatemodel}, the instruments also satisfy the exclusion restriction. That is, $Z_1$ does not directly affect $M$ (other than through $D$) and $Z_2$ does not directly affect $Y$ (other than through $M$). Furthermore and in analogy to Section \ref{latemodident}, $Z_1$ must monotonically shift $D$: Assuming $\Pr(D(1)> D(0))>0$ guarantees that compliers exist, while $\Pr(D(1)\geq D(0)|X)=1$ rules out defiers conditional on $X$. A further condition is the strict monotonicity of the mediator in $V$, which is assumed to be a continuously distributed scalar unobservable or index of unobservables. Finally, the common support restriction that $\Pr(Z_1 = 1 | M, V, X, D(1)-D(0)=1)$ is larger than zero and smaller than one almost surely must hold.
+
+While treatment endogeneity is taken care of by LATE-type assumptions similar to \citet{Abadie00}, mediator endogeneity is tackled by a control function approach, see for instance \citet{ImNe09}. We to this end define the control function $C=C(M,D,Z_{2},X)$, with
+\begin{eqnarray}\label{control}
+C( m,d,z_{2},x) &=& \frac{\E[( d+D-1) \cdot (Z_{1}-\pi(x) ) | M \leq m,Z_{2}=z_{2},X=x] }{\E[ D\cdot ( Z_{1}-\pi(x) )|Z_{2}=z_{2},X=x] } \nonumber \\
+&&\times F_{M|Z_{2},X}( m,z_{2},x) \text{.}
+\end{eqnarray}
+$\pi(X)=\Pr (Z_{1}=1|X)$ denotes the propensity score of the first instrument and  $F_{M|Z_{2},X}$ the conditional cumulative distribution of the mediator given the second instrument and the covariates. Under the invoked assumptions, $C$ can be shown to be a one-to-one mapping of $V$. Therefore, conditioning on $C$ or $V$ is equivalent to control for mediator endogeneity. Intuitively, the key idea of the identification approach is to exogenously vary $Z_1$ to affect $D$, while keeping $M$ unchanged through an exogenous variation of $Z_2$ that undoes the effect of $Z_1$ on $M$ (through $D$). For the latter, conditioning on $C$ is required.
+
+Under these IV assumptions, the potential outcomes are identified by:
+
+\begin{eqnarray}\label{idMedIV1}
+\E\left[Y(1,M(1))|D(1)-D(0)=1\right] = \frac{\E\left[Y\cdot D \cdot \left(Z_1/\pi(X)-(1-Z_1)/(1-\pi(X))\right)\right]}{\E\left[D\cdot \left(Z_1/\pi(X)-(1-Z_1)/(1-\pi(X))\right)\right]},\\ \label{idMedIV2}
+\E\left[Y(1,M(0))|D(1)-D(0)=1\right] = \frac{\E\left[Y\cdot D \cdot \Omega\cdot\left(Z_1/\pi(X)-(1-Z_1)/(1-\pi(X))\right)\right]}{\E\left[D\cdot \left(Z_1/\pi(X)-(1-Z_1)/(1-\pi(X))\right)\right]},\\ \label{idMedIV3}
+\E\left[Y(0,M(1))|D(1)-D(0)=1\right] = \frac{\E\left[Y\cdot(D-1)\cdot\frac{1}{\Omega}\cdot\left(Z_1/\pi(X)-(1-Z_1)/(1-\pi(X))\right)\right]}{\E\left[D\cdot \left(Z_1/\pi(X)-(1-Z_1)/(1-\pi(X))\right)\right]},\\ \label{idMedIV4}
+\E\left[Y(0,M(0))|D(1)-D(0)=1\right] = \frac{\E\left[Y\cdot(D-1)\cdot\left(Z_1/\pi(X)-(1-Z_1)/(1-\pi(X))\right)\right]}{\E\left[D\cdot \left(Z_1/\pi(X)-(1-Z_1)/(1-\pi(X))\right)\right]},\\ \label{idMedIV}
+\text{with weights } \Omega = \frac{\E\left[ \left( D-1\right)\cdot\left \{ Z_{1}-\Pr \left( Z_{1}=1\right) \right \} |M,C\right] }{\E\left[D\cdot\left \{ Z_{1}-\Pr \left( Z_{1}=1\right) \right \} |M,C\right] }\text{.} \nonumber
+\end{eqnarray}
+
+It follows that $\theta_c(1)$ and $\theta_c(0)$ are identified by the difference of \eqref{idMedIV1} and \eqref{idMedIV3} as well as \eqref{idMedIV2} and \eqref{idMedIV4}, respectively. $\delta_c(1)$ and $\delta_c(0)$ are identified by the difference of \eqref{idMedIV1} and \eqref{idMedIV2} as well as \eqref{idMedIV3} and \eqref{idMedIV4}, respectively.
+
+\subsection{Estimation}\label{est3}
+
+The function \code{medlateweight} returns seven parameters. The five semiparametric IV parameters consist of estimates of the LATE, $\Delta_c$, and the direct effects among compliers under either potential treatment state, $\theta_c (1)$ and $\theta_c (0)$, as well as the indirect effects, $\delta_c (1)$ and $\delta_c (0)$. Furthermore, the function provides two parametric IV estimates of the direct and indirect effects assuming effect homogeneity across potential treatment states and thus ruling out treatment-mediator interactions, such that $\theta_c (1)=\theta_c (0)=\theta_c$ and $\delta_c (1)=\delta_c (0)=\delta_c$.
+
+Concerning the semiparametric methods, estimation is based on normalized versions of the identification results \eqref{idMedIV1} to \eqref{idMedIV4}. The conditional expectations in the first term on the right hand side of control function $C$ in \eqref{control} are estimated by OLS. The second term, the conditional cumulative distribution function $F_{M|Z_{2},X}$, is estimated by kernel methods with a Gaussian kernel as implemented in the \proglang{R} \pkg{np} package of \citet{HaRa08}. As default bandwidth, the rule of thumb by \citet{Silverman86} is used. The remaining conditional expectations/propensity scores entering equations \eqref{idMedIV1} to \eqref{idMedIV4} are estimated based on probit or logit models. Optionally, the square of the control function $C$ can be added as regressor (on top of $C$) in any estimated function that is conditional on $C$.
+
+The parametric IV estimators consist of a multi-step algorithm similar to \citet{PoLeWo13}. The first step is based on a probit or logit regression of $D$ on $(1,Z_{1},X)$ to predict the treatment, denoted by $\tilde{D}$. Next, one linearly regresses $M$ on $(1,Z_{2},\tilde{D},X)$ to predict $M$, denoted by $\tilde{M}$. As these predictions are based on variation in the instruments unrelated to ($U,V,W$) given $X$, they are exogenous. Therefore, the estimated direct effect corresponds to the coefficient on $\tilde{D}$ in an OLS regression of $Y$ on $(1,\tilde{D},\tilde{M},X)$. Finally, we linearly regress $M$ on $(1,\tilde{D},X)$ and estimate the indirect effect as the product of the coefficient on $\tilde{D}$ in the latter regression and that on $\tilde{M}$ in the regression of $Y$.
+
+The standard errors returned by the function \code{medlateweight} are based on the i.i.d.\ bootstrap. An optional trimming procedure is also provided which discards observations with extreme relative weights in the computation of mean potential outcomes \eqref{idMedIV1} to \eqref{idMedIV4}, similar to \citet{HuLeWu13}. More specifically, the values for trimming refer to the relative weights determined by $D$, $D-1$, $Z_1/\pi(X)-(1-Z_1)/(1-\pi(X))$, $\Omega$, and $1/\Omega$, respectively, in the various mean potential outcomes. The default value for the maximum weight per observation is set to 0.1, i.e.\ a maximum weight of 10\% per unit in the computation of any mean potential outcome among compliers.
+
+\subsection[{Example in R}]{Example in \proglang{R}}
+
+This section presents the input arguments of the \code{medlateweight} function. It then indicates the components stored in the object generated by \code{medlateweight}. Finally, it provides an example for computing the seven estimands identified in Section \ref{idmedlate}.
+
+\subsubsection[{Input arguments of medlateweight}]{Input arguments of \code{medlateweight}}
+
+The input arguments of \code{medlateweight} are:
+
+\begin{longtable}{p{.15\asdf} p{.85\asdf}}
+\caption{Input arguments of the \code{medlateweight} function}\\
+%\begin{table}
+%\centering
+%\begin{tabularx}{\textwidth}{lX}
+\hline
+Variables & Features of the variables \\
+\hline
+\endfirsthead
+\multicolumn{2}{l@{}}{\ldots continued}\\
+\hline
+Variables & Features of the variables \\
+\hline
+\endhead
+\hline
+\multicolumn{2}{@{}r}{continued \ldots }\\
+\endfoot
+\hline
+\endlastfoot
+\code{y} & Dependent variable, must not contain missings.\\
+\code{d} & Treatment, must be binary (either 1 or 0), must not contain missings.\\
+\code{m} & Mediator, must be a continuous scalar, must not contain missings.\\
+\code{zd} & Instrument for the treatment,  must be binary (either 1 or 0), must not contain missings.\\
+\code{zm} & Instrument(s) for the mediator, must contain at least one continuous element, may be a scalar or a vector, must not contain missings. If no user-specified bandwidth is provided for the regressors when estimating the conditional cumulative distribution function $F(M|Z_2,X)$, i.e. if \code{bwreg=NULL}, then \code{zm} must be exclusively numeric.\\
+\code{x} & Pre-treatment confounders, may be a scalar or a vector, must not contain missings. If no user-specified bandwidth is provided for the regressors when estimating the conditional cumulative distribution function $F(M|Z_2,X)$, i.e. if \code{bwreg=NULL}, then \code{x} must be exclusively numeric.\\
+\code{trim} & Trimming rule for discarding observations with extreme weights. Discards observations whose relative weight would exceed the value in \code{trim} in the estimation of any of the potential outcomes. Default is 0.1 (i.e. a maximum weight of 10\% per observation).\\
+\code{csquared} & If \code{TRUE}, then not only the control function $C$, but also its square is used as regressor in any estimated function that conditions on $C$. Default is \code{FALSE}.\\
+\code{boot} & Number of bootstrap replications for estimating standard errors. Default is 1999.\\
+\code{cminobs} & Minimum number of observations to compute the control function $C$, see the numerator of equation \eqref{control}. A larger value increases boundary bias when estimating the control function for lower values of M, but reduces the variance. Default is 40, but should be adapted to sample size and the number of variables in \code{zm} and \code{x}.\\
+\code{bwreg} & Bandwidths for \code{zm} and \code{x} in the estimation of the conditional cumulative distribution function $F(M|Z_2,X)$ based on the \code{np} package by \citet{HaRa08}, see equation \eqref{control}. The length of the numeric vector must correspond to the joint number of elements in \code{zm} and \code{x} and will be used both in the original sample for effect estimation and in bootstrap samples to compute standard errors. If set to \code{NULL}, then the rule of thumb is used for bandwidth calculation, see the \code{np} package for details. In the latter case, all elements in the regressors must be numeric. Default is \code{NULL}.\\
+\code{bwm} & Bandwidth for \code{m} in the estimation of the conditional cumulative distribution function $F(M|Z_2,X)$ based on the \code{np} package by \citet{HaRa08}, see equation \eqref{control}. Must be scalar and will be used both in the original sample for effect estimation and in bootstrap samples to compute standard errors. If set to \code{NULL}, then the rule of thumb is used for bandwidth calculation, see the \code{np} package for details. Default is \code{NULL}.\\
+\code{logit} & If \code{FALSE}, probit regression is used for any propensity score estimation. If \code{TRUE}, logit regression is used. Default is \code{FALSE}.\\
+\hline
+%\end{tabularx}
+%\end{table}
+\end{longtable}
+
+\subsubsection[{The medlateweight object}]{The \code{medlateweight} object}
+
+A \code{medlateweight} object consists of two components, which can be referenced by a dollar sign (\code{\$}), see the example in this section below. These components are:
+
+\begin{longtable}{p{.15\asdf} p{.85\asdf}}
+\caption{Components of the \code{medlateweight} object}\\
+%\begin{table}
+%\centering
+%\begin{tabularx}{\textwidth}{lX}
+\hline
+Components & Description of the components \\
+\hline
+\endfirsthead
+\multicolumn{2}{l@{}}{\ldots continued}\\
+\hline
+Components & Description of the components \\
+\hline
+\endhead
+\hline
+\multicolumn{2}{@{}r}{continued \ldots }\\
+\endfoot
+\hline
+\endlastfoot
+\code{results} &  A 3x7 matrix containing the effect estimates in the first row (\code{effects}), standard errors in the second row (\code{se}), and p-values in the third row (\code{p-value}). The first column provides the total effect, namely the local average treatment effect (\code{LATE}) on the compliers. The second and third columns provide the direct effects under treatment and control, respectively (\code{dir.treat}, \code{dir.control}). The fourth and fifth columns provide the indirect effects under treatment and control, respectively (\code{indir.treat}, \code{indir.control}). The sixth and seventh columns provide the parametric direct and indirect effect estimates (\code{dir.para}, \code{indir.para}) without intercation terms, respectively. For the parametric estimates, probit or logit specifications are used for the treatment model, and models for mediator and outcome apply OLS specifications.\\
+\code{ntrimmed} & Number of discarded (trimmed) observations due to large weights.\\
+\hline
+%\end{tabularx}
+%\end{table}
+\end{longtable}
+
+\subsubsection{Illustrative example}\label{exmedlate}
+
+This example is based on simulated data. The sample size \code{n} is set to 10'000. The residual matrix \code{e} (for \code{y}, \code{m}, and \code{d}) refers to equation \eqref{outmodel} and follows a multivariate normal distribution with covariance matrix \code{sigma}. The seeds set when generating random variables (\code{set.seed()}) enable the replication of the results. The following chunk of \proglang{R} input code results in the output of the function \code{medlateweight}:
+
+\begin{Schunk}
+\begin{Sinput}
+> n=3000
+> sigma=matrix(c(1,0.5,0.5,0.5,1,0.5,0.5,0.5,1),3,3)
+> set.seed(100); e=(rmvnorm(n,rep(0,3),sigma))
+> set.seed(101); x=rnorm(n)
+> set.seed(102); zd=(0.5*x+rnorm(n)>0)*1
+> d=(-1+0.5*x+2*zd+e[,3]>0)
+> set.seed(103); zm=0.5*x+rnorm(n)
+> m=(0.5*x+2*zm+0.5*d+e[,2])
+> y=0.5*x+d+m+e[,1]
+> options(digits=3)
+> medlateweight(y,d,m,zd,zm,x,trim=0.1,csquared=FALSE,boot=19,cminobs=40,
++               bwreg=NULL,bwm=NULL,logit=FALSE)
+\end{Sinput}
+\end{Schunk}
+
+The first component of the \code{medlateweight} object (\code{\$results}) shows the effect estimates, standard errors, and p-values for five semiparametric and two parametric IV treatment effect estimates. \code{LATE} refers to the LATE \code{dir.treat}, \code{dir.control}, \code{indir.treat}, and \code{indir.control} are the average direct and indirect effects under treatment and non-treatment. The two parametrically estimated direct and indirect effects are reported by \code{dir.para} and \code{indir.para}, respectively. The second component of the \code{medlateweight} object (\code{\$ntrimmed}) states the number of observations discarded due to the trimming rule. The output of \code{medlateweight} is:
+
+\begin{Schunk}
+\begin{Soutput}
+$results
+            LATE dir.treat dir.control indir.treat indir.control  dir.para
+effect  1.40e+00      1.32    9.98e-01     0.40120        0.0756  9.98e-01
+se      1.61e-01      1.36    1.27e-01     0.13582        1.3589  4.46e-02
+p-value 2.95e-18      0.33    4.50e-15     0.00314        0.9556 8.09e-111
+        indir.para
+effect    0.444446
+se        0.133849
+p-value   0.000899
+
+$ntrimmed
+
+1
+\end{Soutput}
+\end{Schunk}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Summary}\label{summary}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+This article describes the functionalities of the \pkg{causalweight} package for analyzing both causal effects and their causal mechanisms in general treatment effect models based on inverse probability weighting (IPW). The settings include sample selection models, mediation analyses (incorporating intermediate outcomes) with selection on observables and unobservables, and instrumental variable approaches for estimating local effects. %For future research, the \pkg{causalweight} package may act is a starting platform to develop new methods in the field of causal analysis.
+
+\bibliography{bodory-huber}
+
+\end{document}
